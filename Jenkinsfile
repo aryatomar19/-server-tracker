@@ -2,16 +2,17 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = "ap-south-1" // Change to your region
-        AWS_ACCOUNT_ID = "331248920826"   // Change to your AWS account ID
-        ECR_REPO_NAME = "trackingappcode" // Your ECR repo name
+        AWS_DEFAULT_REGION = "ap-south-1"
+        AWS_ACCOUNT_ID = "331248920826"
+        ECR_REPO_NAME = "trackingappcode"
         IMAGE_TAG = "latest"
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/aryatomar19/-server-tracker'
+                git branch: 'main', url: 'https://github.com/aryatomar19/-server-tracker.git'
             }
         }
 
@@ -19,8 +20,8 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker build -t $docker build -t trackingappcode .
-                    docker tag trackingappcode:latest 331248920826.dkr.ecr.ap-south-1.amazonaws.com/trackingappcode:latest
+                    docker build -t ${ECR_REPO_NAME}:${IMAGE_TAG} .
+                    docker tag ${ECR_REPO_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPO_NAME}:${IMAGE_TAG}
                     """
                 }
             }
@@ -30,7 +31,8 @@ pipeline {
             steps {
                 script {
                     sh """
-                    aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 331248920826.dkr.ecr.ap-south-1.amazonaws.com
+                    aws ecr get-login-password --region ${AWS_DEFAULT_REGION} \
+                    | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     """
                 }
             }
@@ -40,7 +42,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker push 331248920826.dkr.ecr.ap-south-1.amazonaws.com/trackingappcode:latest
+                    docker push ${ECR_REGISTRY}/${ECR_REPO_NAME}:${IMAGE_TAG}
                     """
                 }
             }
@@ -50,10 +52,15 @@ pipeline {
             steps {
                 script {
                     sh """
-                    aws ecs update-service --cluster server-tracker-cluster --service server-tracker-service --force-new-deployment --region $AWS_DEFAULT_REGION
+                    aws ecs update-service \
+                        --cluster server-tracker-cluster \
+                        --service server-tracker-service \
+                        --force-new-deployment \
+                        --region ${AWS_DEFAULT_REGION}
                     """
                 }
             }
         }
     }
 }
+
